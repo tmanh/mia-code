@@ -1,0 +1,57 @@
+Write a complete Keep Up Cooking WordPress recipe post as Gutenberg HTML.
+
+Use these local references:
+- template/direct_upload_recipe_post_template.html
+- template/wordpress_image_url_guideline.md
+- template/recipe_post_reference_rhubarb_tea.html
+- template/recipe_post_template.md
+
+I will provide only the basics:
+
+- Title: [RECIPE TITLE]
+- Image folder: [ABSOLUTE LOCAL IMAGE FOLDER PATH]
+- Ingredients:
+  - [ingredient 1 + amount]
+  - [ingredient 2 + amount]
+  - [ingredient 3 + amount]
+- Steps:
+  1. [brief step 1]
+  2. [brief step 2]
+  3. [brief step 3]
+- Optional keyword: [KEYWORD, or leave blank]
+
+Your job:
+
+1. Infer the slug from the title.
+2. Infer the main keyword if I do not provide one.
+3. Infer the upload year/month from the image folder path when possible.
+4. Read the image folder and choose the best images for:
+   - hero image
+   - ingredients/process image
+   - step images
+   - final/serving image
+5. Ignore macOS `._*` files and tiny thumbnail variants unless a thumbnail is specifically needed.
+6. Build exact public URLs using:
+   https://keepupcooking.com/wp-content/uploads/[YYYY]/[MM]/[filename]
+7. Use direct-upload Gutenberg image blocks without WordPress Media Library IDs:
+   - no `"id"`
+   - no `wp-image-ID`
+8. Expand my brief ingredients and steps into a polished Keep Up Cooking recipe post.
+9. Add helpful sections when appropriate:
+   - Why You'll Love This [Recipe]
+   - Ingredients
+   - How to Make [Recipe]
+   - Tips
+   - Frequently Asked Questions
+   - More [Topic] Recipes
+10. Include the standard Keep Up Cooking social CTA.
+11. Save the finished HTML as:
+   template/generated_[slug]_post.html
+12. Also save a short image mapping file as:
+   template/generated_[slug]_image_map.md
+
+Only ask me a clarification question if:
+- the image folder path does not reveal the upload year/month,
+- the folder has no usable images,
+- the recipe steps are too vague to safely complete,
+- or there are multiple unrelated recipe image sets in the folder and the correct set is unclear.
