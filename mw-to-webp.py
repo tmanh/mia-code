@@ -1,4 +1,5 @@
 import argparse
+import math
 import os
 from pathlib import Path
 
@@ -13,6 +14,24 @@ DEFAULT_RESIZE_PERCENTAGE = 70
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".heic", ".heif", ".webp"}
 COMPRESS_FOLDER_NAME = "compress"
 IMAGE_TOOLS = None
+NATSORTED = None
+
+
+def load_natsorted():
+    global NATSORTED
+    if NATSORTED is not None:
+        return NATSORTED
+
+    try:
+        from natsort import natsorted
+    except ModuleNotFoundError as error:
+        raise SystemExit(
+            "Missing sorting dependency. Install it in the Python environment you use:\n"
+            "python3 -m pip install natsort"
+        ) from error
+
+    NATSORTED = natsorted
+    return NATSORTED
 
 
 def load_image_tools():
@@ -21,7 +40,7 @@ def load_image_tools():
         return IMAGE_TOOLS
 
     try:
-        from PIL import Image, ImageOps, UnidentifiedImageError
+        from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
         from pillow_heif import register_heif_opener
     except ModuleNotFoundError as error:
         raise SystemExit(
@@ -35,7 +54,7 @@ def load_image_tools():
     # camera images before they can be resized, while still blocking wildly
     # oversized files.
     Image.MAX_IMAGE_PIXELS = 500_000_000
-    IMAGE_TOOLS = (Image, ImageOps, UnidentifiedImageError)
+    IMAGE_TOOLS = (Image, ImageFilter, ImageOps, UnidentifiedImageError)
     return IMAGE_TOOLS
 
 
@@ -51,7 +70,7 @@ def list_image_files(folder_path):
         if path.is_file() and path.suffix.lower() in IMAGE_EXTS:
             image_files.append(path)
 
-    return sorted(image_files, key=lambda item: item.name.lower())
+    return load_natsorted()(image_files, key=lambda item: item.name.lower())
 
 
 def build_rename_plan(image_files, general_name, start_index):
@@ -116,6 +135,9 @@ def rename_files_safely(plan, dry_run=False):
 
         temp_by_source = dict(temp_plan)
         for source, target in changes:
+            if source == target:
+                print(f"Skipping {source.name}: already correctly named.")
+                continue
             temp_by_source[source].rename(target)
     except Exception:
         # Best-effort rollback so a failed rename does not leave files stranded
@@ -129,13 +151,148 @@ def rename_files_safely(plan, dry_run=False):
     return [target for _, target in plan]
 
 
-def convert_to_webp(image_path, out_path, quality, resize_percentage):
-    Image, ImageOps, UnidentifiedImageError = load_image_tools()
+def split_alpha(img):
+    if img.mode in ("RGBA", "LA"):
+        return img.convert("RGBA").split()[-1]
+    if img.mode == "P" and "transparency" in img.info:
+        return img.convert("RGBA").split()[-1]
+    return None
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def median(values):
+    if not values:
+        return None
+
+    sorted_values = sorted(values)
+    midpoint = len(sorted_values) // 2
+    if len(sorted_values) % 2:
+        return sorted_values[midpoint]
+    return (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2.0
+
+
+def get_white_balance_gains(rgb_img):
+    sample = rgb_img.copy()
+    sample.thumbnail((512, 512))
+
+    red_values = []
+    green_values = []
+    blue_values = []
+
+    for red, green, blue in sample.getdata():
+        brightness = (red + green + blue) / 3.0
+        if brightness < 45 or brightness > 238:
+            continue
+
+        channel_spread = max(red, green, blue) - min(red, green, blue)
+        if channel_spread / max(brightness, 1.0) > 0.22:
+            continue
+
+        red_values.append(red)
+        green_values.append(green)
+        blue_values.append(blue)
+
+    if len(red_values) < 300:
+        return 1.0, 1.0, 1.0
+
+    red_median = median(red_values)
+    green_median = median(green_values)
+    blue_median = median(blue_values)
+    gray_median = (red_median + green_median + blue_median) / 3.0
+
+    if min(red_median, green_median, blue_median) <= 0:
+        return 1.0, 1.0, 1.0
+
+    return (
+        clamp(gray_median / red_median, 0.88, 1.14),
+        clamp(gray_median / green_median, 0.90, 1.10),
+        clamp(gray_median / blue_median, 0.88, 1.14),
+    )
+
+
+def apply_white_balance(rgb_img):
+    Image, _, _, _ = load_image_tools()
+    red_gain, green_gain, blue_gain = get_white_balance_gains(rgb_img)
+    red_channel, green_channel, blue_channel = rgb_img.split()
+
+    balanced = Image.merge(
+        "RGB",
+        (
+            red_channel.point(lambda value: clamp(int(value * red_gain), 0, 255)),
+            green_channel.point(lambda value: clamp(int(value * green_gain), 0, 255)),
+            blue_channel.point(lambda value: clamp(int(value * blue_gain), 0, 255)),
+        ),
+    )
+
+    return Image.blend(rgb_img, balanced, 0.65)
+
+
+def get_luminance_median(y_channel):
+    sample = y_channel.copy()
+    sample.thumbnail((512, 512))
+    values = [value for value in sample.getdata() if 8 < value < 248]
+    return median(values) or 128
+
+
+def build_luminance_curve(y_channel):
+    y_median = get_luminance_median(y_channel)
+    target_median = 142
+    gamma = math.log(target_median / 255.0) / math.log(clamp(y_median, 20, 235) / 255.0)
+    gamma = clamp(gamma, 0.62, 1.18)
+
+    curve = []
+    for value in range(256):
+        normalized = value / 255.0
+        exposed = int(255 * (normalized ** gamma))
+
+        # Lift shadows and midtones, but fade the adjustment out in highlights
+        # so bright counters/mats do not become chalky or clipped.
+        protect_highlights = 1.0 - (normalized ** 2.2)
+        lifted_shadow = value + 18 * ((1.0 - normalized) ** 2.0)
+        target = exposed * 0.78 + lifted_shadow * 0.22
+        adjusted = value + (target - value) * protect_highlights
+        curve.append(clamp(int(adjusted), 0, 255))
+
+    return curve
+
+
+def enhance_image(img):
+    Image, ImageFilter, _, _ = load_image_tools()
+    alpha = split_alpha(img)
+
+    rgb_img = apply_white_balance(img.convert("RGB"))
+    y_channel, cb_channel, cr_channel = rgb_img.convert("YCbCr").split()
+
+    y_channel = y_channel.point(build_luminance_curve(y_channel))
+    y_channel = y_channel.filter(ImageFilter.UnsharpMask(radius=1.1, percent=16, threshold=10))
+
+    enhanced = Image.merge("YCbCr", (y_channel, cb_channel, cr_channel)).convert("RGB")
+
+    if alpha is not None:
+        enhanced = enhanced.convert("RGBA")
+        enhanced.putalpha(alpha)
+
+    return enhanced
+
+
+def convert_to_webp(
+    image_path,
+    out_path,
+    quality,
+    resize_percentage,
+):
+    Image, _, ImageOps, UnidentifiedImageError = load_image_tools()
 
     try:
         with Image.open(image_path) as img:
             icc_profile = img.info.get("icc_profile")
             img = ImageOps.exif_transpose(img)
+
+            img = enhance_image(img)
+
             width, height = img.size
             resized_size = (
                 max(1, int(width * resize_percentage / 100.0)),
@@ -153,7 +310,12 @@ def convert_to_webp(image_path, out_path, quality, resize_percentage):
         return False
 
 
-def convert_all_images(image_files, quality, resize_percentage, dry_run=False):
+def convert_all_images(
+    image_files,
+    quality,
+    resize_percentage,
+    dry_run=False,
+):
     if not image_files:
         print("Convert: no image files found.")
         return
@@ -177,7 +339,12 @@ def convert_all_images(image_files, quality, resize_percentage, dry_run=False):
         if dry_run:
             converted += 1
             continue
-        if convert_to_webp(image_path, out_path, quality, resize_percentage):
+        if convert_to_webp(
+            image_path,
+            out_path,
+            quality,
+            resize_percentage,
+        ):
             converted += 1
         else:
             skipped += 1
@@ -187,7 +354,14 @@ def convert_all_images(image_files, quality, resize_percentage, dry_run=False):
     print(f"Conversion summary: {converted} new, {skipped} skipped.")
 
 
-def run_pipeline(folder_path, general_name, start_index, quality, resize_percentage, dry_run=False):
+def run_pipeline(
+    folder_path,
+    general_name,
+    start_index,
+    quality,
+    resize_percentage,
+    dry_run=False,
+):
     folder = Path(folder_path).expanduser()
     if not folder.exists():
         raise FileNotFoundError(f"The folder does not exist: {folder}")
@@ -204,7 +378,12 @@ def run_pipeline(folder_path, general_name, start_index, quality, resize_percent
 
     plan = build_rename_plan(image_files, general_name, start_index)
     renamed_files = rename_files_safely(plan, dry_run=dry_run)
-    convert_all_images(renamed_files, quality, resize_percentage, dry_run=dry_run)
+    convert_all_images(
+        renamed_files,
+        quality,
+        resize_percentage,
+        dry_run=dry_run,
+    )
 
 
 def parse_args():
