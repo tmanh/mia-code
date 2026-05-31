@@ -291,7 +291,8 @@ def convert_to_webp(
             icc_profile = img.info.get("icc_profile")
             img = ImageOps.exif_transpose(img)
 
-            img = enhance_image(img)
+            # TODO: to improve later
+            # img = enhance_image(img)
 
             width, height = img.size
             resized_size = (
