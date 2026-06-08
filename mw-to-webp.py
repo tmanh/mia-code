@@ -5,16 +5,24 @@ from pathlib import Path
 
 
 # Edit these defaults when you want to run the script without command-line args.
-DEFAULT_FOLDER_PATH = "/Volumes/ME/MEO/Blogging/keepupcooking/main-keepupcooking/articles_keepupcooking/00-rhubarb tea"
-DEFAULT_GENERAL_NAME = "rhubarb-tea-recipe"
+DEFAULT_FOLDER_PATH = '/Volumes/ME/MEO/Blogging/miawanders/articles_miawanders/00-top things to do in Gent, Belgium'
+DEFAULT_GENERAL_NAME = "top-things-to-do-in-gent-belgium"
 DEFAULT_START_INDEX = 1
-DEFAULT_QUALITY = 70
-DEFAULT_RESIZE_PERCENTAGE = 70
+DEFAULT_QUALITY = 100
+DEFAULT_RESIZE_PERCENTAGE = 100
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".heic", ".heif", ".webp"}
 COMPRESS_FOLDER_NAME = "compress"
 IMAGE_TOOLS = None
 NATSORTED = None
+
+
+def should_rename(general_name):
+    if general_name is None:
+        return False
+
+    name = str(general_name).strip()
+    return name not in ("", "0")
 
 
 def load_natsorted():
@@ -377,10 +385,15 @@ def run_pipeline(
     if not dry_run:
         load_image_tools()
 
-    plan = build_rename_plan(image_files, general_name, start_index)
-    renamed_files = rename_files_safely(plan, dry_run=dry_run)
+    if should_rename(general_name):
+        plan = build_rename_plan(image_files, str(general_name).strip(), start_index)
+        convert_files = rename_files_safely(plan, dry_run=dry_run)
+    else:
+        print("Rename: skipped because no base name was provided.")
+        convert_files = image_files
+
     convert_all_images(
-        renamed_files,
+        convert_files,
         quality,
         resize_percentage,
         dry_run=dry_run,
@@ -392,7 +405,11 @@ def parse_args():
         description="Safely rename images, resize them, and convert them to WebP."
     )
     parser.add_argument("--folder", default=DEFAULT_FOLDER_PATH, help="Folder containing images.")
-    parser.add_argument("--name", default=DEFAULT_GENERAL_NAME, help="Base name for renamed images.")
+    parser.add_argument(
+        "--name",
+        default=DEFAULT_GENERAL_NAME,
+        help='Base name for renamed images. Leave blank or use "0" to skip renaming.',
+    )
     parser.add_argument("--start", type=int, default=DEFAULT_START_INDEX, help="Starting index.")
     parser.add_argument("--quality", type=int, default=DEFAULT_QUALITY, help="WebP quality, 1-100.")
     parser.add_argument(

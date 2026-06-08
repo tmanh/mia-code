@@ -1,0 +1,1804 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Batch Photo Adjuster</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17191f;
+      --muted: #68707d;
+      --line: #dfe3ea;
+      --track: #e3e7ed;
+      --thumb: #ffffff;
+      --accent: #8b3dff;
+      --accent-strong: #7130d8;
+      --shadow: 0 12px 34px rgba(23, 25, 31, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-areas:
+        "topbar"
+        "main"
+        "controls";
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      display: contents;
+    }
+
+    .topbar {
+      grid-area: topbar;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-height: 58px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .icon-btn {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .icon-btn:hover {
+      background: #f0f2f5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .controls {
+      grid-area: controls;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px 18px;
+      align-items: start;
+      max-height: 42vh;
+      overflow: auto;
+      padding: 14px 18px 18px;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+    }
+
+    .upload {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .file-label {
+      grid-column: 1 / -1;
+      display: grid;
+      place-items: center;
+      min-height: 62px;
+      border: 1.5px dashed #b9c0cc;
+      border-radius: 8px;
+      background: #fafbfc;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: center;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .file-label strong {
+      display: block;
+      color: var(--ink);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .file-label input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 38px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 750;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 7px 17px rgba(139, 61, 255, 0.28);
+    }
+
+    .action:hover {
+      background: var(--accent-strong);
+    }
+
+    .action.secondary {
+      min-height: 38px;
+      background: #eef0f4;
+      color: var(--ink);
+      box-shadow: none;
+    }
+
+    .action.secondary:hover {
+      background: #e3e6ec;
+    }
+
+    .action.compact {
+      min-height: 34px;
+      box-shadow: none;
+    }
+
+    .status {
+      grid-column: 1 / -1;
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .section {
+      min-width: 0;
+      padding: 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .section-title svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .slider-row {
+      display: grid;
+      grid-template-columns: 84px minmax(92px, 1fr) 46px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .slider-label {
+      grid-column: auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .slider-row input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .number {
+      width: 46px;
+      height: 34px;
+      border: 1px solid #cfd5df;
+      border-radius: 8px;
+      text-align: center;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .check-row input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 92px;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .text-input {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid #cfd5df;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 11px;
+    }
+
+    .export-preview {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      margin: 6px 0 10px;
+      word-break: break-word;
+    }
+
+    .ratio-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .ratio-button {
+      min-height: 34px;
+      border: 1px solid #cfd5df;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .ratio-button.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(139, 61, 255, 0.18);
+      color: var(--accent);
+    }
+
+    .switch {
+      position: relative;
+      width: 46px;
+      height: 26px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .switch span {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #b7bdc9;
+      cursor: pointer;
+      transition: background 150ms ease;
+    }
+
+    .switch span::after {
+      content: "";
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      left: 2px;
+      top: 2px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(20, 25, 35, 0.2);
+      transition: transform 150ms ease;
+    }
+
+    .switch input:checked + span {
+      background: var(--accent);
+    }
+
+    .switch input:checked + span::after {
+      transform: translateX(20px);
+    }
+
+    .swatches {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .swatch {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px #cfd5df;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .swatch.active {
+      box-shadow: 0 0 0 3px var(--ink);
+    }
+
+    .main {
+      grid-area: main;
+      display: grid;
+      grid-template-rows: auto auto auto;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .workspace-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 247, 249, 0.9);
+    }
+
+    .meta {
+      min-width: 0;
+    }
+
+    .meta strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 18px;
+    }
+
+    .meta span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tool-button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 14px;
+      cursor: pointer;
+    }
+
+    .tool-button:hover {
+      border-color: #c5cad3;
+      box-shadow: 0 2px 8px rgba(20, 25, 35, 0.07);
+    }
+
+    .preview-wrap {
+      display: grid;
+      align-items: start;
+      justify-items: center;
+      padding: 14px 18px 10px;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .preview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      width: 100%;
+    }
+
+    .canvas-box {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .canvas-box span {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    canvas {
+      width: 100%;
+      max-height: min(54vh, 620px);
+      object-fit: contain;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .empty {
+      width: min(720px, 100%);
+      padding: 42px;
+      text-align: center;
+      border: 1px dashed #c5cad3;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .empty strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 22px;
+    }
+
+    .filmstrip {
+      display: flex;
+      gap: 8px;
+      padding: 8px 18px 10px;
+      overflow-x: auto;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .thumb {
+      position: relative;
+      flex: 0 0 62px;
+      width: 62px;
+      height: 62px;
+      padding: 0;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #eef0f4;
+      cursor: pointer;
+    }
+
+    .thumb.active {
+      border-color: var(--accent);
+    }
+
+    .thumb.auto::after {
+      content: "auto";
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: rgba(139, 61, 255, 0.92);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb span {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 2px 4px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.88);
+      color: #252932;
+      font-size: 11px;
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        min-height: 100vh;
+      }
+
+      .workspace-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+        max-height: none;
+      }
+
+      .preview {
+        grid-template-columns: 1fr;
+      }
+
+      canvas {
+        max-height: 38vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="topbar">
+        <button class="icon-btn" type="button" id="resetAll" title="Reset adjustments" aria-label="Reset adjustments">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <h1>Adjust</h1>
+      </div>
+
+      <div class="controls">
+        <div class="upload">
+          <label class="file-label">
+            <input id="fileInput" type="file" accept="image/*,.heic,.heif" multiple>
+            <span><strong>Select photos</strong>Batch JPG, PNG, WebP, GIF, HEIC if your browser supports it</span>
+          </label>
+          <button class="action" type="button" id="autoAdjust">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m14 4 1.1 3.2L18 8.3l-2.9 1.1L14 12l-1.1-2.6L10 8.3l2.9-1.1L14 4ZM6 14l.8 2.2L9 17l-2.2.8L6 20l-.8-2.2L3 17l2.2-.8L6 14ZM18 15l.7 1.8L21 18l-2.3 1.2L18 21l-.7-1.8L15 18l2.3-1.2L18 15Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            Auto-adjust
+          </button>
+          <button class="action secondary" type="button" id="autoAdjustAll">Auto-adjust all photos</button>
+          <button class="action secondary" type="button" id="applyCurrentToAll">Apply current settings to all</button>
+          <button class="action secondary" type="button" id="backToOriginal">Back to original</button>
+          <div class="status" id="statusText"></div>
+        </div>
+
+        <section class="section" aria-label="Crop and rotate controls">
+          <h2 class="section-title">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Crop & rotate
+          </h2>
+          <button class="action compact" type="button" id="smartCrop">Smart Crop</button>
+          <div class="ratio-grid" id="ratioGrid">
+            <button class="ratio-button active" type="button" data-ratio="freeform">Freeform</button>
+            <button class="ratio-button" type="button" data-ratio="original">Original</button>
+            <button class="ratio-button" type="button" data-ratio="1">1:1</button>
+            <button class="ratio-button" type="button" data-ratio="0.8">4:5</button>
+            <button class="ratio-button" type="button" data-ratio="1.7777777778">16:9</button>
+            <button class="ratio-button" type="button" data-ratio="1.3333333333">4:3</button>
+          </div>
+          <div class="field-grid">
+            <button class="action secondary compact" type="button" id="rotateLeft">Rotate left</button>
+            <button class="action secondary compact" type="button" id="rotateRight">Rotate right</button>
+          </div>
+          <div data-control="rotate"></div>
+          <div data-control="zoom"></div>
+          <div data-control="panX"></div>
+          <div data-control="panY"></div>
+        </section>
+
+        <section class="section" aria-label="White balance controls">
+          <h2 class="section-title">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3a7 7 0 0 0-4 12.7V18h8v-2.3A7 7 0 0 0 12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M9 22h6M10 18v-3h4v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            White balance
+          </h2>
+          <div data-control="temperature"></div>
+          <div data-control="tint"></div>
+        </section>
+
+        <section class="section" aria-label="Light controls">
+          <h2 class="section-title">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Light
+          </h2>
+          <div data-control="brightness"></div>
+          <div data-control="contrast"></div>
+          <div data-control="highlights"></div>
+          <div data-control="shadows"></div>
+          <div data-control="whites"></div>
+          <div data-control="blacks"></div>
+        </section>
+
+        <section class="section" aria-label="Color controls">
+          <h2 class="section-title">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 3c3.2 3.9 5 6.7 5 9a5 5 0 1 1-10 0c0-2.3 1.8-5.1 5-9Z" stroke="currentColor" stroke-width="2"/>
+              <path d="M15 5c3.2 3.9 5 6.7 5 9a5 5 0 0 1-7.4 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Color
+          </h2>
+          <div class="switch-row">
+            <span>Invert</span>
+            <label class="switch">
+              <input id="invert" type="checkbox">
+              <span></span>
+            </label>
+          </div>
+          <div data-control="vibrance"></div>
+          <div data-control="saturation"></div>
+          <h2 class="section-title" style="margin-top: 10px;">Color edit</h2>
+          <div class="swatches" id="swatches" aria-label="Detected photo colors"></div>
+        </section>
+
+        <section class="section" aria-label="Export settings">
+          <h2 class="section-title">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Export
+          </h2>
+          <div class="field-grid">
+            <div class="field">
+              <label for="renameBase">General name</label>
+              <input class="text-input" id="renameBase" type="text" value="photo">
+            </div>
+            <div class="field">
+              <label for="startIndex">Start</label>
+              <input class="text-input" id="startIndex" type="number" min="0" value="1">
+            </div>
+          </div>
+          <label class="check-row">
+            <input id="keepOriginalName" type="checkbox">
+            <span>Original name + general name + number</span>
+          </label>
+          <label class="check-row">
+            <input id="capWebpSize" type="checkbox" checked>
+            <span>Keep WebP exports under 1 MB</span>
+          </label>
+          <div data-control="resizePercent"></div>
+          <div data-control="quality"></div>
+          <div class="export-preview" id="exportPreview">Output: photo-1.webp, photo-2.webp</div>
+        </section>
+
+        <button class="action" type="button" id="saveAll">Save adjusted batch</button>
+        <button class="action secondary" type="button" id="downloadCurrent">Download current photo</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="workspace-head">
+        <div class="meta">
+          <strong id="currentName">No photo selected</strong>
+          <span id="batchMeta">Choose multiple images to start</span>
+        </div>
+        <div class="toolbar">
+          <select class="tool-button" id="format">
+            <option value="image/webp">WebP</option>
+            <option value="image/jpeg">JPG</option>
+            <option value="image/png">PNG</option>
+          </select>
+          <button class="tool-button" type="button" id="prevPhoto">Previous</button>
+          <button class="tool-button" type="button" id="nextPhoto">Next</button>
+        </div>
+      </header>
+
+      <div class="preview-wrap" id="previewWrap">
+        <div class="empty">
+          <strong>Batch color adjustment</strong>
+          Upload photos to auto-adjust each image, fine-tune any photo, then export renamed WebP files in one batch.
+        </div>
+      </div>
+
+      <div class="filmstrip" id="filmstrip" aria-label="Selected photos"></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+  <script>
+    const controls = [
+      ["temperature", "Temperature"],
+      ["tint", "Tint"],
+      ["brightness", "Brightness"],
+      ["contrast", "Contrast"],
+      ["highlights", "Highlights"],
+      ["shadows", "Shadows"],
+      ["whites", "Whites"],
+      ["blacks", "Blacks"],
+      ["vibrance", "Vibrance"],
+      ["saturation", "Saturation"]
+    ];
+    const transformControls = [
+      ["rotate", "Rotate", -180, 180, 0],
+      ["zoom", "Zoom", 100, 250, 100],
+      ["panX", "Move X", -100, 100, 0],
+      ["panY", "Move Y", -100, 100, 0]
+    ];
+
+    const state = {
+      files: [],
+      skippedFiles: [],
+      adjustments: [],
+      transforms: [],
+      current: 0,
+      originalImage: null,
+      values: Object.fromEntries(controls.map(([key]) => [key, 0])),
+      transform: {
+        ratio: "freeform",
+        rotate: 0,
+        zoom: 100,
+        panX: 0,
+        panY: 0
+      },
+      invert: false,
+      export: {
+        renameBase: "photo",
+        startIndex: 1,
+        resizePercent: 100,
+        quality: 82,
+        keepOriginalName: false,
+        capWebpSize: true
+      }
+    };
+    const imageExtensions = /\.(avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i;
+    const heicExtensions = /\.(heic|heif)$/i;
+
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      previewWrap: document.getElementById("previewWrap"),
+      filmstrip: document.getElementById("filmstrip"),
+      currentName: document.getElementById("currentName"),
+      batchMeta: document.getElementById("batchMeta"),
+      invert: document.getElementById("invert"),
+      format: document.getElementById("format"),
+      statusText: document.getElementById("statusText"),
+      renameBase: document.getElementById("renameBase"),
+      startIndex: document.getElementById("startIndex"),
+      keepOriginalName: document.getElementById("keepOriginalName"),
+      capWebpSize: document.getElementById("capWebpSize"),
+      exportPreview: document.getElementById("exportPreview")
+    };
+
+    const originalCanvas = document.createElement("canvas");
+    const adjustedCanvas = document.createElement("canvas");
+    const transparentPixel = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    const imageCache = new Map();
+    const thumbnailCache = new Map();
+    let renderTimer = 0;
+
+    function clamp(value) {
+      return Math.max(0, Math.min(255, value));
+    }
+
+    function createSlider(key, label) {
+      const mount = document.querySelector(`[data-control="${key}"]`);
+      const row = document.createElement("div");
+      row.className = "slider-row";
+      row.innerHTML = `
+        <label class="slider-label" for="${key}">${label}</label>
+        <input id="${key}" type="range" min="-100" max="100" value="0" step="1">
+        <input class="number" id="${key}Number" type="number" min="-100" max="100" value="0">
+      `;
+      mount.replaceWith(row);
+
+      const range = row.querySelector(`#${key}`);
+      const number = row.querySelector(`#${key}Number`);
+      const sync = (value) => {
+        const next = Math.max(-100, Math.min(100, Number(value) || 0));
+        state.values[key] = next;
+        saveCurrentAdjustments();
+        range.value = next;
+        number.value = next;
+        scheduleRender();
+      };
+
+      range.addEventListener("input", () => sync(range.value));
+      number.addEventListener("input", () => sync(number.value));
+    }
+
+    controls.forEach(([key, label]) => createSlider(key, label));
+
+    function createTransformSlider(key, label, min, max, value) {
+      const mount = document.querySelector(`[data-control="${key}"]`);
+      const row = document.createElement("div");
+      row.className = "slider-row";
+      row.innerHTML = `
+        <label class="slider-label" for="${key}">${label}</label>
+        <input id="${key}" type="range" min="${min}" max="${max}" value="${value}" step="1">
+        <input class="number" id="${key}Number" type="number" min="${min}" max="${max}" value="${value}">
+      `;
+      mount.replaceWith(row);
+
+      const range = row.querySelector(`#${key}`);
+      const number = row.querySelector(`#${key}Number`);
+      const sync = (nextValue) => {
+        const next = Math.max(min, Math.min(max, Number(nextValue) || value));
+        state.transform[key] = next;
+        saveCurrentTransform();
+        range.value = next;
+        number.value = next;
+        scheduleRender();
+      };
+
+      range.addEventListener("input", () => sync(range.value));
+      number.addEventListener("input", () => sync(number.value));
+    }
+
+    transformControls.forEach(([key, label, min, max, value]) => {
+      createTransformSlider(key, label, min, max, value);
+    });
+
+    function createExportSlider(key, label, min, max, value, suffix = "") {
+      const mount = document.querySelector(`[data-control="${key}"]`);
+      const row = document.createElement("div");
+      row.className = "slider-row";
+      row.innerHTML = `
+        <label class="slider-label" for="${key}">${label}</label>
+        <input id="${key}" type="range" min="${min}" max="${max}" value="${value}" step="1">
+        <input class="number" id="${key}Number" type="number" min="${min}" max="${max}" value="${value}" aria-label="${label}">
+      `;
+      mount.replaceWith(row);
+
+      const range = row.querySelector(`#${key}`);
+      const number = row.querySelector(`#${key}Number`);
+      const sync = (nextValue) => {
+        const next = Math.max(min, Math.min(max, Number(nextValue) || value));
+        state.export[key] = next;
+        range.value = next;
+        number.value = next;
+        updateExportPreview();
+      };
+
+      range.addEventListener("input", () => sync(range.value));
+      number.addEventListener("input", () => sync(number.value));
+    }
+
+    createExportSlider("resizePercent", "Size", 10, 100, 100, "%");
+    createExportSlider("quality", "Quality", 1, 100, 82);
+
+    function scheduleRender() {
+      clearTimeout(renderTimer);
+      renderTimer = setTimeout(renderPreview, 18);
+    }
+
+    function getExtension() {
+      return {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp"
+      }[els.format.value] || "jpg";
+    }
+
+    function cleanBaseName(value) {
+      return (value || "photo")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9._-]/gi, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "") || "photo";
+    }
+
+    function fileStem(filename) {
+      return cleanBaseName(filename.replace(/\.[^.]+$/, ""));
+    }
+
+    function outputName(index, originalName) {
+      const base = cleanBaseName(state.export.renameBase);
+      const extension = getExtension();
+      if (state.export.keepOriginalName) {
+        const number = state.export.startIndex + index;
+        return `${fileStem(originalName)}-${base}-${number}.${extension}`;
+      }
+
+      const number = state.export.startIndex + index;
+      return `${base}-${number}.${extension}`;
+    }
+
+    function updateExportPreview() {
+      state.export.renameBase = els.renameBase.value;
+      state.export.startIndex = Math.max(0, Number(els.startIndex.value) || 0);
+      state.export.keepOriginalName = els.keepOriginalName.checked;
+      state.export.capWebpSize = els.capWebpSize.checked;
+      const first = outputName(0, state.files[0]?.name || "photo.jpg");
+      const second = outputName(1, state.files[1]?.name || "photo-2.jpg");
+      const sizeRule = state.export.capWebpSize && els.format.value === "image/webp" ? " | max 1 MB" : "";
+      els.exportPreview.textContent = `Output: ${first}${state.files.length > 1 ? `, ${second}` : ""} | ${state.export.resizePercent}% | quality ${state.export.quality}${sizeRule}`;
+    }
+
+    function setStatus(message) {
+      els.statusText.textContent = message || "";
+    }
+
+    function cloneAdjustments(values) {
+      return Object.fromEntries(controls.map(([key]) => [key, Number(values[key]) || 0]));
+    }
+
+    function cloneTransform(transform) {
+      return {
+        ratio: transform?.ratio || "freeform",
+        rotate: Number(transform?.rotate) || 0,
+        zoom: Number(transform?.zoom) || 100,
+        panX: Number(transform?.panX) || 0,
+        panY: Number(transform?.panY) || 0
+      };
+    }
+
+    function defaultTransform() {
+      return {
+        ratio: "freeform",
+        rotate: 0,
+        zoom: 100,
+        panX: 0,
+        panY: 0
+      };
+    }
+
+    function syncControlsFromState() {
+      Object.keys(state.values).forEach((key) => {
+        document.getElementById(key).value = state.values[key];
+        document.getElementById(`${key}Number`).value = state.values[key];
+      });
+      transformControls.forEach(([key]) => {
+        document.getElementById(key).value = state.transform[key];
+        document.getElementById(`${key}Number`).value = state.transform[key];
+      });
+      document.querySelectorAll(".ratio-button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.ratio === state.transform.ratio);
+      });
+      els.invert.checked = state.invert;
+    }
+
+    function saveCurrentAdjustments() {
+      if (!state.adjustments[state.current]) return;
+      state.adjustments[state.current] = cloneAdjustments(state.values);
+    }
+
+    function saveCurrentTransform() {
+      if (!state.transforms[state.current]) return;
+      state.transforms[state.current] = cloneTransform(state.transform);
+    }
+
+    function isHeicFile(file) {
+      return heicExtensions.test(file.name) || /hei(c|f)$/i.test(file.type);
+    }
+
+    async function convertHeicFile(file) {
+      if (typeof window.heic2any !== "function") {
+        throw new Error(
+          "HEIC support needs the heic2any browser converter. Open this tool with internet access, or convert HEIC files to JPG/WebP first."
+        );
+      }
+
+      const converted = await window.heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.96
+      });
+
+      return Array.isArray(converted) ? converted[0] : converted;
+    }
+
+    function convertedName(file) {
+      return file.name.replace(/\.(heic|heif)$/i, ".jpg");
+    }
+
+    async function prepareFile(file, index, total) {
+      if (!isHeicFile(file)) return file;
+
+      setStatus(`Converting HEIC ${index + 1} of ${total}: ${file.name}`);
+      const blob = await convertHeicFile(file);
+      return new File([blob], convertedName(file), {
+        type: "image/jpeg",
+        lastModified: file.lastModified || Date.now()
+      });
+    }
+
+    async function prepareFiles(files) {
+      const prepared = [];
+
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+
+        try {
+          prepared.push(await prepareFile(file, index, files.length));
+        } catch (error) {
+          state.skippedFiles.push({
+            name: file.name,
+            reason: error.message
+          });
+          setStatus(`${file.name}: ${error.message}`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      return prepared;
+    }
+
+    function skippedSummary() {
+      if (!state.skippedFiles.length) return "";
+
+      const firstSkipped = state.skippedFiles
+        .slice(0, 4)
+        .map((file) => `${file.name}: ${file.reason}`)
+        .join(" | ");
+      const remaining = state.skippedFiles.length > 4
+        ? ` | +${state.skippedFiles.length - 4} more`
+        : "";
+
+      return `${state.skippedFiles.length} skipped. ${firstSkipped}${remaining}`;
+    }
+
+    async function loadImage(file) {
+      if (imageCache.has(file)) return imageCache.get(file);
+
+      const imagePromise = (async () => {
+        const imageBlob = isHeicFile(file) ? await convertHeicFile(file) : file;
+
+        return new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(imageBlob);
+          const img = new Image();
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(img);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error(`Could not load ${file.name}`));
+          };
+          img.src = url;
+        });
+      })();
+
+      imageCache.set(file, imagePromise);
+
+      try {
+        return await imagePromise;
+      } catch (error) {
+        imageCache.delete(file);
+        throw error;
+      }
+    }
+
+    async function thumbnailDataUrl(file) {
+      if (thumbnailCache.has(file)) return thumbnailCache.get(file);
+
+      const img = await loadImage(file);
+      const canvas = document.createElement("canvas");
+      const size = 140;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const sourceWidth = img.naturalWidth || img.width;
+      const sourceHeight = img.naturalHeight || img.height;
+      const scale = Math.max(size / sourceWidth, size / sourceHeight);
+      const width = sourceWidth * scale;
+      const height = sourceHeight * scale;
+      const left = (size - width) / 2;
+      const top = (size - height) / 2;
+
+      ctx.fillStyle = "#eef0f4";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, left, top, width, height);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      thumbnailCache.set(file, dataUrl);
+      return dataUrl;
+    }
+
+    async function selectPhoto(index) {
+      if (!state.files.length) return;
+      saveCurrentAdjustments();
+      saveCurrentTransform();
+      state.current = Math.max(0, Math.min(state.files.length - 1, index));
+      try {
+        state.originalImage = await loadImage(state.files[state.current]);
+      } catch (error) {
+        setStatus(error.message);
+        return;
+      }
+      state.values = cloneAdjustments(state.adjustments[state.current] || state.values);
+      state.transform = cloneTransform(state.transforms[state.current] || state.transform);
+      syncControlsFromState();
+      els.currentName.textContent = state.files[state.current].name;
+      els.batchMeta.textContent = `${state.current + 1} of ${state.files.length} editable photos${state.skippedFiles.length ? ` (${state.skippedFiles.length} skipped)` : ""}`;
+      renderFilmstrip();
+      renderPreview();
+      updateSwatches();
+    }
+
+    function renderFilmstrip() {
+      els.filmstrip.innerHTML = "";
+      state.files.forEach((file, index) => {
+        const button = document.createElement("button");
+        button.className = `thumb auto${index === state.current ? " active" : ""}`;
+        button.type = "button";
+        button.title = file.name;
+        const img = document.createElement("img");
+        img.alt = "";
+        img.src = transparentPixel;
+        thumbnailDataUrl(file)
+          .then((dataUrl) => {
+            img.src = dataUrl;
+          })
+          .catch((error) => {
+            button.classList.remove("auto");
+            button.title = `${file.name}: ${error.message}`;
+          });
+        const label = document.createElement("span");
+        label.textContent = String(index + 1);
+        button.append(img, label);
+        button.addEventListener("click", () => selectPhoto(index));
+        els.filmstrip.append(button);
+      });
+    }
+
+    function getRatioValue(transform, sourceWidth, sourceHeight) {
+      if (transform.ratio === "original") return sourceWidth / sourceHeight;
+      if (transform.ratio === "freeform") return null;
+      return Number(transform.ratio) || null;
+    }
+
+    function transformedSize(sourceWidth, sourceHeight, transform) {
+      const radians = (Number(transform.rotate) || 0) * Math.PI / 180;
+      const cos = Math.abs(Math.cos(radians));
+      const sin = Math.abs(Math.sin(radians));
+      const boundWidth = sourceWidth * cos + sourceHeight * sin;
+      const boundHeight = sourceWidth * sin + sourceHeight * cos;
+      const ratio = getRatioValue(transform, sourceWidth, sourceHeight);
+
+      if (!ratio) {
+        return {
+          width: Math.max(1, Math.round(boundWidth)),
+          height: Math.max(1, Math.round(boundHeight)),
+          boundWidth,
+          boundHeight
+        };
+      }
+
+      let width = boundWidth;
+      let height = width / ratio;
+
+      if (height > boundHeight) {
+        height = boundHeight;
+        width = height * ratio;
+      }
+
+      return {
+        width: Math.max(1, Math.round(width)),
+        height: Math.max(1, Math.round(height)),
+        boundWidth,
+        boundHeight
+      };
+    }
+
+    function drawTransformedBase(canvas, img, transform = state.transform, exportMode = false) {
+      const resize = exportMode
+        ? Math.max(10, Math.min(100, Number(state.export.resizePercent) || 100)) / 100
+        : Math.min(1, 2200 / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+      const sourceWidth = img.naturalWidth || img.width;
+      const sourceHeight = img.naturalHeight || img.height;
+      const drawWidth = Math.max(1, Math.round(sourceWidth * resize));
+      const drawHeight = Math.max(1, Math.round(sourceHeight * resize));
+      const nextSize = transformedSize(drawWidth, drawHeight, transform);
+      canvas.width = nextSize.width;
+      canvas.height = nextSize.height;
+
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.translate(
+        (Number(transform.panX) || 0) / 100 * canvas.width * 0.42,
+        (Number(transform.panY) || 0) / 100 * canvas.height * 0.42
+      );
+      ctx.rotate((Number(transform.rotate) || 0) * Math.PI / 180);
+
+      const zoom = Math.max(1, (Number(transform.zoom) || 100) / 100);
+      const coverScale = Math.max(canvas.width / nextSize.boundWidth, canvas.height / nextSize.boundHeight) * zoom;
+      ctx.scale(coverScale, coverScale);
+      ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+      ctx.restore();
+      return ctx;
+    }
+
+    function analyzeImage(img) {
+      const sample = document.createElement("canvas");
+      const size = 160;
+      const ratio = Math.min(size / (img.naturalWidth || img.width), size / (img.naturalHeight || img.height));
+      sample.width = Math.max(1, Math.round((img.naturalWidth || img.width) * ratio));
+      sample.height = Math.max(1, Math.round((img.naturalHeight || img.height) * ratio));
+      const ctx = sample.getContext("2d");
+      ctx.drawImage(img, 0, 0, sample.width, sample.height);
+      const data = ctx.getImageData(0, 0, sample.width, sample.height).data;
+      const lumas = [];
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let saturation = 0;
+      let count = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        lumas.push(luma);
+        red += r;
+        green += g;
+        blue += b;
+        saturation += max === 0 ? 0 : (max - min) / max;
+        count += 1;
+      }
+
+      lumas.sort((a, b) => a - b);
+      const mean = lumas.reduce((sum, value) => sum + value, 0) / count;
+      const variance = lumas.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / count;
+      const stddev = Math.sqrt(variance);
+      const p08 = lumas[Math.floor(count * 0.08)];
+      const p50 = lumas[Math.floor(count * 0.5)];
+      const p92 = lumas[Math.floor(count * 0.92)];
+      const avgRed = red / count;
+      const avgGreen = green / count;
+      const avgBlue = blue / count;
+      const avgSaturation = saturation / count;
+
+      return {
+        temperature: Math.round(Math.max(-14, Math.min(8, (avgBlue - avgRed) * 0.12 - 2))),
+        tint: Math.round(Math.max(-10, Math.min(10, (avgGreen - ((avgRed + avgBlue) / 2)) * 0.08))),
+        brightness: Math.round(Math.max(4, Math.min(24, (155 - p50) * 0.16 + 10))),
+        contrast: Math.round(Math.max(-8, Math.min(10, (50 - stddev) * 0.11))),
+        highlights: Math.round(Math.max(12, Math.min(42, (222 - p92) * 0.12 + 28))),
+        shadows: Math.round(Math.max(6, Math.min(24, (70 - p08) * 0.16 + 8))),
+        whites: Math.round(Math.max(-16, Math.min(4, (215 - p92) * 0.08 - 8))),
+        blacks: Math.round(Math.max(-6, Math.min(8, (28 - p08) * 0.06 + 2))),
+        vibrance: Math.round(Math.max(28, Math.min(48, (0.42 - avgSaturation) * 46 + 34))),
+        saturation: Math.round(Math.max(8, Math.min(20, (0.3 - avgSaturation) * 18 + 14)))
+      };
+    }
+
+    function analyzeFocus(img) {
+      const sample = document.createElement("canvas");
+      const size = 120;
+      const ratio = Math.min(size / (img.naturalWidth || img.width), size / (img.naturalHeight || img.height));
+      sample.width = Math.max(1, Math.round((img.naturalWidth || img.width) * ratio));
+      sample.height = Math.max(1, Math.round((img.naturalHeight || img.height) * ratio));
+      const ctx = sample.getContext("2d");
+      ctx.drawImage(img, 0, 0, sample.width, sample.height);
+      const data = ctx.getImageData(0, 0, sample.width, sample.height).data;
+      let weightSum = 0;
+      let xSum = 0;
+      let ySum = 0;
+
+      for (let y = 0; y < sample.height; y += 1) {
+        for (let x = 0; x < sample.width; x += 1) {
+          const index = (y * sample.width + x) * 4;
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          const sat = max === 0 ? 0 : (max - min) / max;
+          const weight = Math.max(0, sat - 0.16) * 1.7 + Math.max(0, 190 - luma) / 255;
+
+          if (weight <= 0.04) continue;
+          weightSum += weight;
+          xSum += (x / sample.width) * weight;
+          ySum += (y / sample.height) * weight;
+        }
+      }
+
+      if (!weightSum) return { panX: 0, panY: 0 };
+      return {
+        panX: Math.round(Math.max(-28, Math.min(28, (0.5 - xSum / weightSum) * 78))),
+        panY: Math.round(Math.max(-28, Math.min(28, (0.5 - ySum / weightSum) * 78)))
+      };
+    }
+
+    function smartCropCurrent() {
+      if (!state.originalImage) return;
+      const focus = analyzeFocus(state.originalImage);
+      state.transform = {
+        ...state.transform,
+        zoom: Math.max(Number(state.transform.zoom) || 100, 112),
+        panX: focus.panX,
+        panY: focus.panY
+      };
+      saveCurrentTransform();
+      syncControlsFromState();
+      scheduleRender();
+      setStatus(`Smart crop applied to ${state.files[state.current].name}.`);
+    }
+
+    async function autoAdjustBatch() {
+      if (!state.files.length) return;
+      setStatus(`Auto-adjusting ${state.files.length} photo(s)...`);
+      const nextAdjustments = [];
+
+      for (let index = 0; index < state.files.length; index += 1) {
+        setStatus(`Auto-adjusting ${index + 1} of ${state.files.length}: ${state.files[index].name}`);
+        try {
+          const img = await loadImage(state.files[index]);
+          nextAdjustments[index] = analyzeImage(img);
+        } catch (error) {
+          nextAdjustments[index] = cloneAdjustments(state.values);
+          setStatus(`${state.files[index].name}: ${error.message}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      state.adjustments = nextAdjustments;
+      state.values = cloneAdjustments(state.adjustments[state.current] || nextAdjustments[0]);
+      syncControlsFromState();
+      renderFilmstrip();
+      renderPreview();
+      setStatus(`Auto-adjusted ${state.files.length} photo(s).`);
+    }
+
+    function applyAdjustments(sourceCanvas, targetCanvas, values = state.values) {
+      targetCanvas.width = sourceCanvas.width;
+      targetCanvas.height = sourceCanvas.height;
+      const sourceCtx = sourceCanvas.getContext("2d");
+      const targetCtx = targetCanvas.getContext("2d");
+      const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = imageData.data;
+      const v = values;
+      const contrastFactor = (259 * ((v.contrast * 1.2) + 255)) / (255 * (259 - (v.contrast * 1.2)));
+      const satFactor = 1 + v.saturation / 100;
+      const vibranceFactor = v.vibrance / 100;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+
+        r += v.temperature * 0.46 + v.tint * 0.25;
+        g -= v.tint * 0.36;
+        b -= v.temperature * 0.46;
+        b += v.tint * 0.25;
+
+        let luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        const shadowMask = Math.pow(1 - luma, 1.8);
+        const highlightMask = Math.pow(luma, 1.8);
+        r += v.shadows * 0.95 * shadowMask + v.highlights * 0.95 * highlightMask;
+        g += v.shadows * 0.95 * shadowMask + v.highlights * 0.95 * highlightMask;
+        b += v.shadows * 0.95 * shadowMask + v.highlights * 0.95 * highlightMask;
+
+        luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        r += v.whites * Math.pow(luma, 3) * 0.8;
+        g += v.whites * Math.pow(luma, 3) * 0.8;
+        b += v.whites * Math.pow(luma, 3) * 0.8;
+        r += v.blacks * Math.pow(1 - luma, 3) * 0.8;
+        g += v.blacks * Math.pow(1 - luma, 3) * 0.8;
+        b += v.blacks * Math.pow(1 - luma, 3) * 0.8;
+
+        r += v.brightness * 1.1;
+        g += v.brightness * 1.1;
+        b += v.brightness * 1.1;
+
+        r = contrastFactor * (r - 128) + 128;
+        g = contrastFactor * (g - 128) + 128;
+        b = contrastFactor * (b - 128) + 128;
+
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        const maxChannel = Math.max(r, g, b);
+        const avgChannel = (r + g + b) / 3;
+        const vibranceAmount = (1 - Math.abs(maxChannel - avgChannel) / 255) * vibranceFactor;
+        r = gray + (r - gray) * satFactor * (1 + vibranceAmount);
+        g = gray + (g - gray) * satFactor * (1 + vibranceAmount);
+        b = gray + (b - gray) * satFactor * (1 + vibranceAmount);
+
+        if (state.invert) {
+          r = 255 - r;
+          g = 255 - g;
+          b = 255 - b;
+        }
+
+        data[i] = clamp(r);
+        data[i + 1] = clamp(g);
+        data[i + 2] = clamp(b);
+      }
+
+      targetCtx.putImageData(imageData, 0, 0);
+    }
+
+    function renderPreview() {
+      if (!state.originalImage) return;
+
+      drawTransformedBase(originalCanvas, state.originalImage);
+      applyAdjustments(originalCanvas, adjustedCanvas);
+
+      els.previewWrap.innerHTML = "";
+      const preview = document.createElement("div");
+      preview.className = "preview";
+      const before = document.createElement("div");
+      before.className = "canvas-box";
+      before.innerHTML = "<span>Original</span>";
+      const after = document.createElement("div");
+      after.className = "canvas-box";
+      after.innerHTML = "<span>Adjusted</span>";
+      before.append(originalCanvas);
+      after.append(adjustedCanvas);
+      preview.append(before, after);
+      els.previewWrap.append(preview);
+    }
+
+    function resetControls() {
+      Object.keys(state.values).forEach((key) => {
+        state.values[key] = 0;
+        document.getElementById(key).value = 0;
+        document.getElementById(`${key}Number`).value = 0;
+      });
+      state.invert = false;
+      state.transform = cloneTransform(defaultTransform());
+      els.invert.checked = false;
+      saveCurrentAdjustments();
+      saveCurrentTransform();
+      syncControlsFromState();
+      scheduleRender();
+    }
+
+    function backToOriginal() {
+      if (!state.files.length) return;
+      state.values = cloneAdjustments(Object.fromEntries(controls.map(([key]) => [key, 0])));
+      state.transform = cloneTransform(defaultTransform());
+      state.invert = false;
+      saveCurrentAdjustments();
+      saveCurrentTransform();
+      syncControlsFromState();
+      renderPreview();
+      setStatus(`Reset ${state.files[state.current].name} to original.`);
+    }
+
+    function autoAdjust() {
+      if (!state.originalImage) return;
+      state.values = analyzeImage(state.originalImage);
+      saveCurrentAdjustments();
+      syncControlsFromState();
+      scheduleRender();
+      setStatus(`Auto-adjusted ${state.files[state.current].name}.`);
+    }
+
+    function applyCurrentToAll() {
+      if (!state.files.length) return;
+      saveCurrentAdjustments();
+      saveCurrentTransform();
+      const currentValues = cloneAdjustments(state.values);
+      const currentTransform = cloneTransform(state.transform);
+      state.adjustments = state.files.map(() => cloneAdjustments(currentValues));
+      state.transforms = state.files.map(() => cloneTransform(currentTransform));
+      renderFilmstrip();
+      renderPreview();
+      setStatus(`Applied current settings to ${state.files.length} photo(s).`);
+    }
+
+    function setRatio(ratio) {
+      state.transform.ratio = ratio;
+      saveCurrentTransform();
+      syncControlsFromState();
+      scheduleRender();
+    }
+
+    function normalizeDegrees(value) {
+      let next = Number(value) || 0;
+      while (next > 180) next -= 360;
+      while (next < -180) next += 360;
+      return Math.round(next);
+    }
+
+    function rotateCurrent(delta) {
+      state.transform.rotate = normalizeDegrees((Number(state.transform.rotate) || 0) + delta);
+      saveCurrentTransform();
+      syncControlsFromState();
+      scheduleRender();
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+      return new Promise((resolve) => {
+        canvas.toBlob(resolve, type, quality);
+      });
+    }
+
+    function scaledCanvas(canvas, scale) {
+      const next = document.createElement("canvas");
+      next.width = Math.max(1, Math.round(canvas.width * scale));
+      next.height = Math.max(1, Math.round(canvas.height * scale));
+      next.getContext("2d").drawImage(canvas, 0, 0, next.width, next.height);
+      return next;
+    }
+
+    async function exportBlobFromCanvas(canvas, filename = "") {
+      const type = els.format.value;
+      const startQuality = Math.max(1, Math.min(100, Number(state.export.quality) || 82));
+
+      if (type !== "image/webp" || !state.export.capWebpSize) {
+        return {
+          blob: await canvasToBlob(canvas, type, startQuality / 100),
+          quality: startQuality,
+          scale: 1
+        };
+      }
+
+      const maxBytes = 1024 * 1024;
+      let workingCanvas = canvas;
+      let scale = 1;
+
+      for (let resizeTry = 0; resizeTry < 14; resizeTry += 1) {
+        const qualitySteps = [startQuality, 76, 68, 60, 52, 44, 36, 30].filter((quality, index, list) => (
+          quality > 0 && list.indexOf(quality) === index
+        ));
+
+        for (const quality of qualitySteps) {
+          const blob = await canvasToBlob(workingCanvas, type, quality / 100);
+          if (blob.size <= maxBytes) {
+            if (scale < 1 || quality < startQuality) {
+              setStatus(`${filename || "Photo"} compressed to ${(blob.size / 1024).toFixed(0)} KB: quality ${quality}, size ${Math.round(scale * 100)}%.`);
+            }
+            return { blob, quality, scale };
+          }
+        }
+
+        scale *= 0.86;
+        workingCanvas = scaledCanvas(canvas, scale);
+      }
+
+      let blob = await canvasToBlob(workingCanvas, type, 0.24);
+      let emergencyScale = scale;
+
+      while (blob.size > maxBytes && Math.max(workingCanvas.width, workingCanvas.height) > 360) {
+        emergencyScale *= 0.76;
+        workingCanvas = scaledCanvas(canvas, emergencyScale);
+        blob = await canvasToBlob(workingCanvas, type, 0.18);
+      }
+
+      if (blob.size <= maxBytes) {
+        setStatus(`${filename || "Photo"} compressed to ${(blob.size / 1024).toFixed(0)} KB: quality 18, size ${Math.round(emergencyScale * 100)}%.`);
+      } else {
+        setStatus(`${filename || "Photo"} is still ${(blob.size / 1024 / 1024).toFixed(2)} MB because the image is already at minimum practical size.`);
+      }
+      return { blob, quality: 18, scale: emergencyScale };
+    }
+
+    function downloadBlob(blob, outputFilename) {
+      return new Promise((resolve) => {
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = outputFilename;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => {
+            URL.revokeObjectURL(link.href);
+            resolve();
+          }, 150);
+      });
+    }
+
+    async function downloadCanvas(canvas, outputFilename) {
+      updateExportPreview();
+      const { blob } = await exportBlobFromCanvas(canvas, outputFilename);
+      await downloadBlob(blob, outputFilename);
+    }
+
+    async function renderAdjustedForFile(file, index) {
+      let img;
+      try {
+        img = await loadImage(file);
+      } catch (error) {
+        throw new Error(`${file.name}: ${error.message}`);
+      }
+      const source = document.createElement("canvas");
+      const target = document.createElement("canvas");
+      drawTransformedBase(source, img, state.transforms[index] || state.transform, true);
+      applyAdjustments(source, target, state.adjustments[index] || state.values);
+      return target;
+    }
+
+    async function saveAll() {
+      if (!state.files.length) return;
+      saveCurrentAdjustments();
+      updateExportPreview();
+      const supportsDirectory = "showDirectoryPicker" in window;
+
+      if (supportsDirectory) {
+        const directory = await window.showDirectoryPicker();
+        for (let index = 0; index < state.files.length; index += 1) {
+          const file = state.files[index];
+          setStatus(`Saving ${index + 1} of ${state.files.length}: ${outputName(index, file.name)}`);
+          let canvas;
+          try {
+            canvas = await renderAdjustedForFile(file, index);
+          } catch (error) {
+            setStatus(error.message);
+            continue;
+          }
+          const { blob } = await exportBlobFromCanvas(canvas, outputName(index, file.name));
+          const handle = await directory.getFileHandle(outputName(index, file.name), { create: true });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        }
+        setStatus(`Saved ${state.files.length} adjusted photo(s).`);
+        return;
+      }
+
+      for (let index = 0; index < state.files.length; index += 1) {
+        const file = state.files[index];
+        setStatus(`Downloading ${index + 1} of ${state.files.length}: ${outputName(index, file.name)}`);
+        let canvas;
+        try {
+          canvas = await renderAdjustedForFile(file, index);
+        } catch (error) {
+          setStatus(error.message);
+          continue;
+        }
+        await downloadCanvas(canvas, outputName(index, file.name));
+      }
+      setStatus(`Downloaded ${state.files.length} adjusted photo(s).`);
+    }
+
+    function averageSwatches() {
+      if (!state.originalImage) return [];
+      const sample = document.createElement("canvas");
+      sample.width = 90;
+      sample.height = 90;
+      const ctx = sample.getContext("2d");
+      ctx.drawImage(state.originalImage, 0, 0, sample.width, sample.height);
+      const data = ctx.getImageData(0, 0, sample.width, sample.height).data;
+      const buckets = new Map();
+
+      for (let i = 0; i < data.length; i += 16) {
+        const r = Math.round(data[i] / 32) * 32;
+        const g = Math.round(data[i + 1] / 32) * 32;
+        const b = Math.round(data[i + 2] / 32) * 32;
+        const key = `${r},${g},${b}`;
+        buckets.set(key, (buckets.get(key) || 0) + 1);
+      }
+
+      return [...buckets.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([key]) => `rgb(${key})`);
+    }
+
+    function updateSwatches() {
+      const swatches = document.getElementById("swatches");
+      swatches.innerHTML = "";
+      averageSwatches().forEach((color, index) => {
+        const button = document.createElement("button");
+        button.className = `swatch${index === 0 ? " active" : ""}`;
+        button.type = "button";
+        button.style.background = color;
+        button.title = color;
+        swatches.append(button);
+      });
+    }
+
+    els.fileInput.addEventListener("change", async () => {
+      imageCache.clear();
+      thumbnailCache.clear();
+      state.skippedFiles = [];
+      const inputFiles = [...els.fileInput.files];
+      const selectedFiles = inputFiles.filter((file) => (
+        file.type.startsWith("image/") || imageExtensions.test(file.name)
+      ));
+      const rejectedFiles = inputFiles.filter((file) => !selectedFiles.includes(file));
+
+      state.skippedFiles.push(...rejectedFiles.map((file) => ({
+        name: file.name,
+        reason: "Not a supported image file."
+      })));
+
+      if (!selectedFiles.length) return;
+
+      setStatus(`Preparing ${selectedFiles.length} photo(s)...`);
+      state.files = await prepareFiles(selectedFiles);
+      if (!state.files.length) {
+        setStatus(`No editable photos loaded. ${skippedSummary()}`);
+        return;
+      }
+
+      state.adjustments = state.files.map(() => cloneAdjustments(state.values));
+      state.transform = cloneTransform(defaultTransform());
+      state.transforms = state.files.map(() => cloneTransform(defaultTransform()));
+      setStatus(`Loaded ${state.files.length} editable photo(s).${state.skippedFiles.length ? ` ${skippedSummary()}` : ""}`);
+      await selectPhoto(0);
+      await autoAdjustBatch();
+      await selectPhoto(0);
+      if (state.skippedFiles.length) {
+        setStatus(`Loaded ${state.files.length} editable photo(s) from ${inputFiles.length} selected. ${skippedSummary()}`);
+      }
+      updateExportPreview();
+    });
+
+    els.invert.addEventListener("change", () => {
+      state.invert = els.invert.checked;
+      scheduleRender();
+    });
+
+    document.getElementById("resetAll").addEventListener("click", resetControls);
+    document.getElementById("backToOriginal").addEventListener("click", backToOriginal);
+    document.getElementById("autoAdjust").addEventListener("click", autoAdjust);
+    document.getElementById("autoAdjustAll").addEventListener("click", autoAdjustBatch);
+    document.getElementById("applyCurrentToAll").addEventListener("click", applyCurrentToAll);
+    document.getElementById("smartCrop").addEventListener("click", smartCropCurrent);
+    document.getElementById("rotateLeft").addEventListener("click", () => rotateCurrent(-90));
+    document.getElementById("rotateRight").addEventListener("click", () => rotateCurrent(90));
+    document.querySelectorAll(".ratio-button").forEach((button) => {
+      button.addEventListener("click", () => setRatio(button.dataset.ratio));
+    });
+    document.getElementById("prevPhoto").addEventListener("click", () => selectPhoto(state.current - 1));
+    document.getElementById("nextPhoto").addEventListener("click", () => selectPhoto(state.current + 1));
+    document.getElementById("downloadCurrent").addEventListener("click", () => {
+      if (!state.files.length) return;
+      saveCurrentAdjustments();
+      renderAdjustedForFile(state.files[state.current], state.current)
+        .then((canvas) => downloadCanvas(canvas, outputName(state.current, state.files[state.current].name)));
+    });
+    document.getElementById("saveAll").addEventListener("click", saveAll);
+    els.renameBase.addEventListener("input", updateExportPreview);
+    els.startIndex.addEventListener("input", updateExportPreview);
+    els.keepOriginalName.addEventListener("change", updateExportPreview);
+    els.capWebpSize.addEventListener("change", updateExportPreview);
+    els.format.addEventListener("change", updateExportPreview);
+    updateExportPreview();
+  </script>
+</body>
+</html>
