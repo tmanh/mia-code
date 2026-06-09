@@ -796,6 +796,7 @@
     };
     const imageExtensions = /\.(avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i;
     const heicExtensions = /\.(heic|heif)$/i;
+    const heicToScriptUrl = "https://cdn.jsdelivr.net/npm/heic-to@1.5.2/dist/iife/heic-to.js";
 
     const els = {
       fileInput: document.getElementById("fileInput"),
@@ -818,6 +819,7 @@
     const transparentPixel = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
     const imageCache = new Map();
     const thumbnailCache = new Map();
+    let heicToLoader = null;
     let renderTimer = 0;
 
     function clamp(value) {
@@ -1016,7 +1018,37 @@
       return heicExtensions.test(file.name) || /hei(c|f)$/i.test(file.type);
     }
 
-    async function convertHeicFile(file) {
+    function loadHeicTo() {
+      if (typeof window.HeicTo === "function") return Promise.resolve();
+      if (heicToLoader) return heicToLoader;
+
+      heicToLoader = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = heicToScriptUrl;
+        script.async = true;
+        script.onload = () => {
+          if (typeof window.HeicTo === "function") {
+            resolve();
+          } else {
+            heicToLoader = null;
+            reject(new Error("heic-to loaded, but the converter was not available."));
+          }
+        };
+        script.onerror = () => {
+          heicToLoader = null;
+          reject(new Error("Could not load the heic-to fallback converter."));
+        };
+        document.head.append(script);
+      });
+
+      return heicToLoader;
+    }
+
+    function conversionErrorMessage(error) {
+      return error?.message || String(error || "Unknown conversion error");
+    }
+
+    async function convertWithHeic2any(file) {
       if (typeof window.heic2any !== "function") {
         throw new Error(
           "HEIC support needs the heic2any browser converter. Open this tool with internet access, or convert HEIC files to JPG/WebP first."
@@ -1030,6 +1062,89 @@
       });
 
       return Array.isArray(converted) ? converted[0] : converted;
+    }
+
+    async function convertWithHeicTo(file) {
+      await loadHeicTo();
+      return window.HeicTo({
+        blob: file,
+        type: "image/jpeg",
+        quality: 0.96
+      });
+    }
+
+    function imageFromBlob(blob, filename) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error(`Browser-native HEIC decoding could not load ${filename}.`));
+        };
+        img.src = url;
+      });
+    }
+
+    async function bitmapToJpegBlob(bitmap) {
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width || bitmap.naturalWidth;
+      canvas.height = bitmap.height || bitmap.naturalHeight;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0);
+      if (typeof bitmap.close === "function") bitmap.close();
+
+      const blob = await canvasToBlob(canvas, "image/jpeg", 0.96);
+      if (!blob) throw new Error("Browser-native HEIC decoding did not produce a JPEG.");
+      return blob;
+    }
+
+    async function convertWithNativeDecode(file) {
+      const errors = [];
+
+      if (typeof createImageBitmap === "function") {
+        try {
+          return await bitmapToJpegBlob(await createImageBitmap(file));
+        } catch (error) {
+          errors.push(conversionErrorMessage(error));
+        }
+      }
+
+      try {
+        return await bitmapToJpegBlob(await imageFromBlob(file, file.name));
+      } catch (error) {
+        errors.push(conversionErrorMessage(error));
+      }
+
+      throw new Error(errors.join(" | ") || "Browser-native HEIC decoding is not available.");
+    }
+
+    async function convertHeicFile(file) {
+      const errors = [];
+
+      try {
+        return await convertWithHeic2any(file);
+      } catch (error) {
+        errors.push(`heic2any: ${conversionErrorMessage(error)}`);
+      }
+
+      try {
+        setStatus(`Trying newer HEIC decoder for ${file.name}...`);
+        return await convertWithHeicTo(file);
+      } catch (error) {
+        errors.push(`heic-to: ${conversionErrorMessage(error)}`);
+      }
+
+      try {
+        setStatus(`Trying browser-native HEIC decoder for ${file.name}...`);
+        return await convertWithNativeDecode(file);
+      } catch (error) {
+        errors.push(`native: ${conversionErrorMessage(error)}`);
+      }
+
+      throw new Error(`HEIC conversion failed. ${errors.join(" | ")}`);
     }
 
     function convertedName(file) {
