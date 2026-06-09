@@ -213,14 +213,13 @@
       grid-row: 1 / span 2;
     }
 
-    .section.white-balance-section {
+    .tone-column {
       grid-column: 3;
-      grid-row: 1;
-    }
-
-    .section.color-section {
-      grid-column: 3;
-      grid-row: 2;
+      grid-row: 1 / span 2;
+      display: grid;
+      gap: 18px;
+      align-content: start;
+      min-width: 0;
     }
 
     .section.light-section {
@@ -742,6 +741,7 @@
       }
 
       .upload,
+      .tone-column,
       .section,
       .section.crop-section,
       .section.white-balance-section,
@@ -775,6 +775,7 @@
       }
 
       .upload,
+      .tone-column,
       .section,
       .section.crop-section,
       .section.white-balance-section,
@@ -855,17 +856,40 @@
           <div data-control="panY"></div>
         </section>
 
-        <section class="section white-balance-section" aria-label="White balance controls">
-          <h2 class="section-title">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 3a7 7 0 0 0-4 12.7V18h8v-2.3A7 7 0 0 0 12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M9 22h6M10 18v-3h4v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            White balance
-          </h2>
-          <div data-control="temperature"></div>
-          <div data-control="tint"></div>
-        </section>
+        <div class="tone-column">
+          <section class="section white-balance-section" aria-label="White balance controls">
+            <h2 class="section-title">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3a7 7 0 0 0-4 12.7V18h8v-2.3A7 7 0 0 0 12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M9 22h6M10 18v-3h4v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              White balance
+            </h2>
+            <div data-control="temperature"></div>
+            <div data-control="tint"></div>
+          </section>
+
+          <section class="section color-section" aria-label="Color controls">
+            <h2 class="section-title">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7 3c3.2 3.9 5 6.7 5 9a5 5 0 1 1-10 0c0-2.3 1.8-5.1 5-9Z" stroke="currentColor" stroke-width="2"/>
+                <path d="M15 5c3.2 3.9 5 6.7 5 9a5 5 0 0 1-7.4 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Color
+            </h2>
+            <div class="switch-row">
+              <span>Invert</span>
+              <label class="switch">
+                <input id="invert" type="checkbox">
+                <span></span>
+              </label>
+            </div>
+            <div data-control="vibrance"></div>
+            <div data-control="saturation"></div>
+            <h2 class="section-title" style="margin-top: 10px;">Color edit</h2>
+            <div class="swatches" id="swatches" aria-label="Detected photo colors"></div>
+          </section>
+        </div>
 
         <section class="section light-section" aria-label="Light controls">
           <h2 class="section-title">
@@ -880,27 +904,6 @@
           <div data-control="shadows"></div>
           <div data-control="whites"></div>
           <div data-control="blacks"></div>
-        </section>
-
-        <section class="section color-section" aria-label="Color controls">
-          <h2 class="section-title">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M7 3c3.2 3.9 5 6.7 5 9a5 5 0 1 1-10 0c0-2.3 1.8-5.1 5-9Z" stroke="currentColor" stroke-width="2"/>
-              <path d="M15 5c3.2 3.9 5 6.7 5 9a5 5 0 0 1-7.4 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            Color
-          </h2>
-          <div class="switch-row">
-            <span>Invert</span>
-            <label class="switch">
-              <input id="invert" type="checkbox">
-              <span></span>
-            </label>
-          </div>
-          <div data-control="vibrance"></div>
-          <div data-control="saturation"></div>
-          <h2 class="section-title" style="margin-top: 10px;">Color edit</h2>
-          <div class="swatches" id="swatches" aria-label="Detected photo colors"></div>
         </section>
 
         <section class="section export-section" aria-label="Export settings">
